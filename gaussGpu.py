@@ -6,6 +6,7 @@ import pycuda.driver as cuda
 import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import time
+from matplotlib.ticker import FuncFormatter
 
 
 mod = SourceModule("""
@@ -175,16 +176,19 @@ im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
 
 start_gpu_time = time.time()
 blurred = gauss_gpu(im, 21)
-print("time taken for gpu--- %s seconds ---" % (time.time() - start_gpu_time))
+gpu_time = time.time() - start_gpu_time
+print("time taken for gpu--- %s seconds ---" % (gpu_time))
 
 start_gpu_v2_time = time.time()
 blurred_v2 = gauss_gpu_v2(im, 21)
-print("time taken for gpu v2--- %s seconds ---" % (time.time() - start_gpu_v2_time))
+gpu_time_v2 = time.time() - start_gpu_v2_time
+print("time taken for gpu v2--- %s seconds ---" % (gpu_time_v2))
 
 start_cpu_time = time.time()
-# blurred_cpu = cv2.gau(im, (21, 21), 0)
-blurred_cpu = gauss_cpu(im, 21)
-print("time taken for cpu--- %s seconds ---" % (time.time() - start_cpu_time))
+blurred_cpu = cv2.GaussianBlur(im, (21, 21), 0)
+# blurred_cpu = gauss_cpu(im, 21)
+cpu_time = time.time() - start_cpu_time
+print("time taken for cpu--- %s seconds ---" % (cpu_time))
 
 # start_custom_cpu_time = time.time()
 # blurred__custom_cpu = gauss_cpu(im, 21)
@@ -192,8 +196,64 @@ print("time taken for cpu--- %s seconds ---" % (time.time() - start_cpu_time))
 # img = np.asarray(im, dtype=np.uint8)
 # edges = cv2.Canny(im, 25, 255)
 
-plt.subplot(311), plt.imshow(im, cmap='gray')
-plt.title('Original Image'), plt.xticks([]), plt.yticks([])
-plt.subplot(312), plt.imshow(blurred, cmap='gray')
-plt.subplot(313), plt.imshow(blurred_v2, cmap='gray')
+# plt.subplot(311), plt.imshow(im, cmap='gray')
+# plt.title('Original Image'), plt.xticks([]), plt.yticks([])
+# plt.subplot(312), plt.imshow(blurred, cmap='gray')
+# plt.subplot(313), plt.imshow(blurred_v2, cmap='gray')
+# plt.show()
+
+
+def millions(x, pos):
+    'The two args are the value and tick position'
+    return '%s ms' % (x * 1e1)
+
+
+formatter = FuncFormatter(millions)
+
+fig, ax = plt.subplots()
+ax.yaxis.set_major_formatter(formatter)
+ind = np.arange(1, 4)
+
+# show the figure, but do not block
+plt.show(block=False)
+
+
+pm, pc, pn = plt.bar(ind, np.asarray([gpu_time, gpu_time_v2, cpu_time]) * 1000)
+pm.set_facecolor('r')
+pc.set_facecolor('g')
+pn.set_facecolor('b')
+ax.set_xticks(ind)
+ax.set_xticklabels(['GPU v2', 'GPU', 'CPU'])
+ax.set_ylim([0, 70])
+ax.set_ylabel('Percent usage')
+ax.set_title('System Monitor')
+# pm.set_height(gpu_time * 1000)
+# pc.set_height(gpu_time_v2 * 1000)
+# pn.set_height(cpu_time * 1000)
 plt.show()
+
+# start = time.time()
+# for i in range(200):  # run for a little while
+#     m, c, n = get_stats(i / 10.0)
+#
+#     # update the animated artists
+#     pm.set_height(m)
+#     pc.set_height(c)
+#     pn.set_height(n)
+#
+#     # ask the canvas to re-draw itself the next time it
+#     # has a chance.
+#     # For most of the GUI backends this adds an event to the queue
+#     # of the GUI frameworks event loop.
+#     fig.canvas.draw_idle()
+#     try:
+#         # make sure that the GUI framework has a chance to run its event loop
+#         # and clear any GUI events.  This needs to be in a try/except block
+#         # because the default implementation of this method is to raise
+#         # NotImplementedError
+#         fig.canvas.flush_events()
+#     except NotImplementedError:
+#         pass
+#
+# stop = time.time()
+# print("{fps:.1f} frames per second".format(fps=200 / (stop - start)))
