@@ -39,9 +39,9 @@ mod = SourceModule("""
   }
   
   __global__ void gauss_gpu_kernel_v2(unsigned char *image, float *kernel, int kernel_size, int rows, int cols, float *blurred_image) {
-    int idx = threadIdx.x + (blockIdx.x * blockDim.x );
-    int idy = threadIdx.y + blockIdx.y * blockDim.y;
-
+    int idx = blockIdx.x;
+    int idy = blockIdx.y;
+    
     if(idx > rows || idy > cols) {
         return ;
     }
@@ -51,10 +51,17 @@ mod = SourceModule("""
     int x, y, index, k_index;
     
     float sum=0;
-    int kx = threadIdx.z;
+    int kx = threadIdx.x / kernel_size;
+    int ky = threadIdx.x % kernel_size;
     x = idx - kernel_size/2 + kx;
-    if (x < 0) return;
-    for (int ky=0; ky < kernel_size; ky++) {
+    y = idy - kernel_size/2 + ky;
+    
+    if (x < 0 || y < 0 || kx > kernel_size || ky > kernel_size) return;
+    index = x * cols + y;
+    k_index = kx * kernel_size + ky;
+    
+    sum += (int) image[index] * kernel[k_index];
+    /*for (int ky=0; ky < kernel_size; ky++) {
         y = idy - kernel_size/2 + ky;
         if (y < 0) continue;
         
@@ -62,7 +69,7 @@ mod = SourceModule("""
         k_index = kx * kernel_size + ky;
         
         sum += (int) image[index] * kernel[k_index];
-    }
+    }*/
     
     atomicAdd((float*)(blurred_image + target_index), sum);
   }
@@ -115,9 +122,9 @@ def gauss_gpu_v2(input_mat, kernel_size):
     rows = input_size[0]
     cols = input_size[1]
 
-    threadsInBlock = int(np.sqrt(1024//kernel_size))
+    threadsInBlock = int(np.sqrt(1024//(kernel_size * kernel_size)))
     grid = (rows // threadsInBlock + 1, cols // threadsInBlock + 1, 1)
-    block = (threadsInBlock, threadsInBlock, kernel_size)
+    block = (kernel_size * kernel_size, threadsInBlock, threadsInBlock)
 
     input_mat_gpu = gpuarray.to_gpu(input_mat)
     kernel_gpu = gpuarray.to_gpu(kernel)
@@ -175,7 +182,8 @@ blurred_v2 = gauss_gpu_v2(im, 21)
 print("time taken for gpu v2--- %s seconds ---" % (time.time() - start_gpu_v2_time))
 
 start_cpu_time = time.time()
-blurred_cpu = cv2.GaussianBlur(im, (21, 21), 0)
+# blurred_cpu = cv2.gau(im, (21, 21), 0)
+blurred_cpu = gauss_cpu(im, 21)
 print("time taken for cpu--- %s seconds ---" % (time.time() - start_cpu_time))
 
 # start_custom_cpu_time = time.time()
