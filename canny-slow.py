@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 sigma = 2.2
 
-f = 'Two_lane_city_streets.jpg'
+f = 'ema_stone.jpg'
 img = Image.open(f).convert('L')                                          #grayscale
 imgdata = numpy.array(img, dtype = float)                                 
 G = ndi.filters.gaussian_filter(imgdata, sigma)                           #gaussian low pass filter
@@ -161,13 +161,14 @@ for i in range(1, width-1):
             traverse(i, j)
 
 
-scipy.misc.imsave('cannynewout.jpg', gnh)
+# scipy.misc.imsave('cannynewout.jpg', gnh)
 
 imagesToPlot.append((gnh.copy(), 'final'))
 
 for index, d in enumerate(imagesToPlot, start=1):
     plt.subplot(2, 5, index)
-    plt.imshow(cv2.cvtColor(d[0].astype(np.uint8), cv2.COLOR_GRAY2RGB))
+    # plt.imshow(cv2.cvtColor(d[0].astype(np.uint8), cv2.COLOR_GRAY2RGB))
+    plt.imshow(d[0].astype(np.uint8), cmap='gray')
     plt.title(d[1])
 
 plt.show()
