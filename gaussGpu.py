@@ -269,9 +269,10 @@ print("time taken for cpu--- %s seconds ---" % (cpu_time))
 
 def millions(x, pos):
     'The two args are the value and tick position'
-    return '%s ms' % (x * 1e1)
+    return '%s ms' % (x)
 
 
+plt.rcParams.update({'font.size': 12})
 formatter = FuncFormatter(millions)
 
 fig, ax = plt.subplots()
@@ -281,43 +282,20 @@ ind = np.arange(1, 5)
 # show the figure, but do not block
 plt.show(block=False)
 
-
-gsr, gwc, pc, pn = plt.bar(ind, np.asarray([gpu_time_single_row, gpu_time, gpu_time_v2, cpu_time]) * 1000)
+bar_data = np.asarray([gpu_time_v2, gpu_time_single_row, gpu_time, cpu_time]) * 1000
+gsr, gwc, pc, pn = plt.bar(ind, bar_data, width=0.5)
 # pm.set_facecolor('r')
 # pc.set_facecolor('g')
 # pn.set_facecolor('b')
 ax.set_xticks(ind)
-ax.set_xticklabels(['GPU Single Row', 'GPU Whole Kernel', 'GPU', 'CPU'], rotation=25)
-ax.set_ylim([0, 600])
+ax.set_xticklabels(['GPU- Kernel Each Element \n per thread', 'GPU- Kernel Single Row \n per thread', 'GPU- Whole Kernel \n per thread', 'CPU'], rotation=0)
+# ax.tick_params(axis='x', length=200)
+ax.set_ylim([0, 5500])
 ax.set_ylabel('Elapsed Time')
 ax.set_title('GPU Time comparision for Gaussian Blur for a Image of %s*%s Dimension' %(image_shape[0], image_shape[1]))
+for i, v in enumerate(bar_data):
+    ax.text(i + 0.95, v + 20, f"%0.2f"%v, color='blue', fontweight='bold')
 # pm.set_height(gpu_time * 1000)
 # pc.set_height(gpu_time_v2 * 1000)
 # pn.set_height(cpu_time * 1000)
 plt.show()
-
-# start = time.time()
-# for i in range(200):  # run for a little while
-#     m, c, n = get_stats(i / 10.0)
-#
-#     # update the animated artists
-#     pm.set_height(m)
-#     pc.set_height(c)
-#     pn.set_height(n)
-#
-#     # ask the canvas to re-draw itself the next time it
-#     # has a chance.
-#     # For most of the GUI backends this adds an event to the queue
-#     # of the GUI frameworks event loop.
-#     fig.canvas.draw_idle()
-#     try:
-#         # make sure that the GUI framework has a chance to run its event loop
-#         # and clear any GUI events.  This needs to be in a try/except block
-#         # because the default implementation of this method is to raise
-#         # NotImplementedError
-#         fig.canvas.flush_events()
-#     except NotImplementedError:
-#         pass
-#
-# stop = time.time()
-# print("{fps:.1f} frames per second".format(fps=200 / (stop - start)))
