@@ -15,16 +15,7 @@ img = Image.open(f).convert('L')                                          #grays
 imgdata = numpy.array(img, dtype = float)                                 
 G = ndi.filters.gaussian_filter(imgdata, sigma)                           #gaussian low pass filter
 
-numberOfImage = 10
-imageIndex = 0
-rowIndex = 1
-
 imagesToPlot = []
-imageIndex = imageIndex + 1
-if imageIndex == 6:
-    imageIndex = 1
-    rowIndex = rowIndex+1
-
 
 imagesToPlot.append((imgdata.copy(), 'original gray'))
 
