@@ -25,10 +25,10 @@ mod = SourceModule("""
     float sum=0;
     for (int kx=0; kx < kernel_size; kx++) {
         x = idx - kernel_size/2 + kx;
-        if (x < 0) continue;
+        if (x < 0 || x >= rows) continue;
         for (int ky=0; ky < kernel_size; ky++) {
             y = idy - kernel_size/2 + ky;
-            if (y < 0) continue;
+            if (y < 0 || y >= cols) continue;
             
             index = x * cols + y;
             k_index = kx * kernel_size + ky;
@@ -89,10 +89,10 @@ mod = SourceModule("""
     float sum=0;
     int kx = threadIdx.z;
     x = idx - kernel_size/2 + kx;
-    if (x < 0) return;
+    if (x < 0 || x >= rows) return;
     for (int ky=0; ky < kernel_size; ky++) {
         y = idy - kernel_size/2 + ky;
-        if (y < 0) continue;
+        if (y < 0 || y >= cols) continue;
         
         index = x * cols + y;
         k_index = kx * kernel_size + ky;

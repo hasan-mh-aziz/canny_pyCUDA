@@ -23,15 +23,15 @@ imagesToPlot.append((G.copy(), 'gaussian'))
 
 
 sobelout = Image.new('L', img.size)                                       #empty image
-gradx = numpy.array(sobelout, dtype = float)                        
-grady = numpy.array(sobelout, dtype = float)
+gradx = numpy.array(sobelout, dtype = np.float32)
+grady = numpy.array(sobelout, dtype = np.float32)
 
-sobel_x = [[-1,0,1],
-           [-2,0,2],
-           [-1,0,1]]
-sobel_y = [[-1,-2,-1],
-           [0,0,0],
-           [1,2,1]]
+sobel_x = [[-1.,0.,1.],
+           [-2.,0.,2.],
+           [-1.,0.,1.]]
+sobel_y = [[-1.,-2.,-1.],
+           [0.,0.,0.],
+           [1.,2.,1.]]
 
 width = img.size[1]
 height = img.size[0]
