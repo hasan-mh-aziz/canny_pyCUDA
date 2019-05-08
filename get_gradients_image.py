@@ -135,24 +135,95 @@ mod = SourceModule("""
 
     int target_index = idx * cols + idy;
 
-    //mag_sup[target_index] = sobeloutmag_mat_gpu[target_index];
+    mag_sup[target_index] = sobeloutmag_mat_gpu[target_index];
         
     if (sobeloutdir_mat_gpu[target_index] == 0) 
+    {
         if ((sobeloutmag_mat_gpu[target_index] <= sobeloutmag_mat_gpu[serialize_index(idx, idy+1, rows, cols)]) ||
             (sobeloutmag_mat_gpu[target_index] <= sobeloutmag_mat_gpu[serialize_index(idx, idy-1, rows, cols)]))
+        {
             mag_sup[target_index] = 0;
+        }
+    }
     else if (sobeloutdir_mat_gpu[target_index] == 45)
+    {
         if ((sobeloutmag_mat_gpu[target_index] <= sobeloutmag_mat_gpu[serialize_index(idx-1, idy+1, rows, cols)]) ||
             (sobeloutmag_mat_gpu[target_index] <= sobeloutmag_mat_gpu[serialize_index(idx+1, idy-1, rows, cols)]))
+        {
             mag_sup[target_index] = 0;
+        }
+    }
     else if (sobeloutdir_mat_gpu[target_index] == 90)
+    {
         if ((sobeloutmag_mat_gpu[target_index] <= sobeloutmag_mat_gpu[serialize_index(idx+1, idy, rows, cols)]) ||
            (sobeloutmag_mat_gpu[target_index] <= sobeloutmag_mat_gpu[serialize_index(idx-1, idy, rows, cols)]))
+        {
             mag_sup[target_index] = 0;
+        }
+    }
     else
+    {
         if ((sobeloutmag_mat_gpu[target_index] <= sobeloutmag_mat_gpu[serialize_index(idx+1, idy+1, rows, cols)]) ||
             (sobeloutmag_mat_gpu[target_index] <= sobeloutmag_mat_gpu[serialize_index(idx-1, idy-1, rows, cols)]))
+        {
             mag_sup[target_index] = 0;
+        }
+    }
+  }
+  
+  __global__ void gnh_gnl_gpu(float *mag_sup, int rows, int cols, int th, int tl, float *gnh, float *gnl) {
+    int idx = threadIdx.x + (blockIdx.x * blockDim.x );
+    int idy = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if(idx >= rows || idy >= cols) {
+        return ;
+    }
+    
+    int target_index = idx * cols + idy;
+
+    if (mag_sup[target_index]>=th)
+    {
+        gnh[target_index]=mag_sup[target_index];
+    }
+    if (mag_sup[target_index]>=tl)
+    {
+        gnl[target_index]=mag_sup[target_index];
+    }
+  }
+  
+  __device__ void traverse(int i, int j, int rows, int cols, float *gnh, float *gnl) {
+      if (i<0 || i>=rows) return;
+      if (j<0 || j>=cols) return;
+      
+      int x[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+      int y[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+      for (int k = 0; k < 8; k++)
+      {
+        if (gnh[serialize_index(i+x[k], j+y[k], rows, cols)] == 0 && gnl[serialize_index(i+x[k], j+y[k], rows, cols)] != 0)
+        {
+          gnh[serialize_index(i+x[k], j+y[k], rows, cols)] = 1;
+          traverse(i+x[k], j+y[k], rows, cols, gnh, gnl);
+        }
+      }
+  }
+  __global__ void edge_linking_gpu(int rows, int cols, float *gnh, float *gnl) {
+    int idx = threadIdx.x + (blockIdx.x * blockDim.x );
+    int idy = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if(idx >= rows-1 || idy >= cols-1) {
+        return ;
+    }
+    
+    if (idx <1 || idy <1) {
+        return;
+    }
+    
+    int target_index = idx * cols + idy;
+
+    if (gnh[target_index]>0) {
+        gnh[target_index]=1;
+        //traverse(idx, idy, rows, cols, gnh, gnl);
+    }
   }
 
   """)
@@ -216,12 +287,50 @@ def get_non_max_suppression_gpu(sobeloutmag, sobeloutdir):
     
     sobeloutmag_mat_gpu = gpuarray.to_gpu(sobeloutmag_mat)
     sobeloutdir_mat_gpu = gpuarray.to_gpu(sobeloutdir_mat)
-    mag_sup = np.asarray(sobeloutmag, dtype=np.float32)
+    mag_sup = np.zeros((rows, cols), dtype=np.float32)
 
     non_max_suppression_gpu = mod.get_function("non_max_suppression_gpu")
     non_max_suppression_gpu(sobeloutmag_mat_gpu, sobeloutdir_mat_gpu, np.int32(rows), np.int32(cols), cuda.InOut(mag_sup), block=block, grid=grid)
 
     return mag_sup
+
+def get_gnh_gnl_gpu(map_sup, th, tl):
+    map_sup_mat = np.asarray(map_sup, dtype=np.float32)
+    input_size = map_sup_mat.shape
+    rows = input_size[0]
+    cols = input_size[1]
+    
+    threads_in_block = 32
+    grid = (rows // threads_in_block + 1, cols // threads_in_block + 1, 1)
+    block = (threads_in_block, threads_in_block, 1)
+    
+    map_sup_mat_gpu = gpuarray.to_gpu(map_sup_mat)
+    gnh = np.zeros((rows, cols), dtype=np.float32)
+    gnl = np.zeros((rows, cols), dtype=np.float32)
+
+    gnh_gnl_gpu = mod.get_function("gnh_gnl_gpu")
+    gnh_gnl_gpu(map_sup_mat_gpu, np.int32(rows), np.int32(cols), np.int32(th), np.int32(tl), cuda.InOut(gnh), cuda.InOut(gnl), block=block, grid=grid)
+
+    return gnh, gnl
+
+def get_edge_linking_gpu(gnh, gnl):
+    gnh_mat = np.asarray(gnh, dtype=np.float32)
+    gnl_mat = np.asarray(gnl, dtype=np.float32)
+    input_size = gnh_mat.shape
+    rows = input_size[0]
+    cols = input_size[1]
+    
+    threads_in_block = 32
+    grid = (rows // threads_in_block + 1, cols // threads_in_block + 1, 1)
+    block = (threads_in_block, threads_in_block, 1)
+    
+    gnh_mat_gpu = np.asarray(gnh, dtype=np.float32).copy()
+    gnl_mat_gpu = np.asarray(gnl, dtype=np.float32).copy()
+
+    edge_linking_gpu = mod.get_function("edge_linking_gpu")
+    edge_linking_gpu(np.int32(rows), np.int32(cols), cuda.InOut(gnh_mat_gpu), cuda.InOut(gnl_mat_gpu), block=block, grid=grid)
+
+    return gnh_mat_gpu
 
 f = 'ema_stone.jpg'
 img = Image.open(f).convert('L')                                          #grayscale
@@ -257,21 +366,35 @@ gradients_x, gradients_y = get_gradient_image_gpu(image, sobel_x, sobel_y, 3)
 # TODO: parallel
 sobeloutmag = scipy.hypot(gradients_x, gradients_y)
 sobeloutdir = scipy.arctan2(gradients_y, gradients_x)
-print(sobeloutmag)
 
 imagesToPlot.append((sobeloutmag.copy(), 'sobeloutmag'))
 imagesToPlot.append((sobeloutdir.copy(), 'sobeloutdir'))
 
 sobeloutdir = get_sobeldir_angles_gpu(sobeloutdir)
-print(np.unique(sobeloutdir, return_counts=True))
 
 imagesToPlot.append((sobeloutdir.copy(), 'dirquantize'))
 
 mag_sup = get_non_max_suppression_gpu(sobeloutmag, sobeloutdir)
 
-
-
 imagesToPlot.append((mag_sup.copy(), 'mag_sup'))
+
+m = numpy.max(mag_sup)
+th = 0.2*m
+tl = 0.1*m
+
+gnh, gnl = get_gnh_gnl_gpu(mag_sup, th, tl)
+
+imagesToPlot.append((gnl.copy(), 'gnl_before_minus'))
+
+gnl = gnl-gnh
+
+imagesToPlot.append((gnl.copy(), 'gnl_after_minus'))
+
+imagesToPlot.append((gnh.copy(), 'gnh'))
+
+gnh = get_edge_linking_gpu(gnh, gnl)
+
+imagesToPlot.append((gnh.copy(), 'final'))
 
 plt.rcParams['figure.figsize'] = [20, 10]
 for index, d in enumerate(imagesToPlot, start=1):
